@@ -88,7 +88,7 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <BlynkSimpleEsp8266.h>  //https://github.com/blynkkk/blynk-library
-#include <ESPWiFi.h>
+#include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include "FS.h"
 #include <EasyNTPClient.h>       //https://github.com/aharshac/EasyNTPClient
@@ -99,14 +99,18 @@ WiFiUDP udp;
 EasyNTPClient ntpClient(udp, NTP_SERVER, TZ_SEC + DST_SEC);
 
 float measured_temp;
+float measured_temp_f;
 float measured_humi;
 float measured_pres;
 float SLpressure_hPa;               // needed for rel pressure calculation
 float HeatIndex;                    // Heat Index in °C
+float HeatIndexF;                   // Heat Index in °F
 float volt;
 int rel_pressure_rounded;
 double DewpointTemperature;
+double DewpointTemperatureF;
 float DewPointSpread;               // Difference between actual temperature and dewpoint
+float DewPointSpreadF;               // Difference between actual temperature and dewpoint
 
 // FORECAST CALCULATION
 unsigned long current_timestamp;    // Actual timestamp read from NTPtime_t now;
@@ -277,7 +281,13 @@ void setup() {
     Blynk.virtualWrite(7, ZambrettisWords);          // virtual pin 7
     Blynk.virtualWrite(8, accuracy_in_percent);      // virtual pin 8
     Blynk.virtualWrite(9, trend_in_words);           // virtual pin 9
-    Blynk.virtualWrite(10,DewPointSpread);           // virtual pin 10
+    Blynk.virtualWrite(10, DewPointSpread);           // virtual pin 10
+    
+    Blynk.virtualWrite(11, measured_temp_f);          // virtual pin 11
+    Blynk.virtualWrite(12, DewpointTemperatureF);      // virtual pin 12
+    Blynk.virtualWrite(13, HeatIndexF);                // virtual pin 13
+    Blynk.virtualWrite(14, DewPointSpreadF);           // virtual pin 14
+
     Serial.println("Data written to Blink ...");
   } 
  //*******************************************************************************
@@ -330,13 +340,25 @@ void measurementEvent() {
   
   bme.takeForcedMeasurement();
 
+  String temp_units_label = "°C";
+  if (TEMP_UNITS_F == 1) {
+    temp_units_label = "°F";
+  }
+
   // Get temperature
   measured_temp = bme.readTemperature();
   measured_temp = measured_temp + TEMP_CORR;
+  measured_temp_f = (measured_temp * 1.8) + 32;
+
   // print on serial monitor
   Serial.print("Temp: ");
-  Serial.print(measured_temp);
-  Serial.print("°C; ");
+  if (TEMP_UNITS_F == 1) {
+    Serial.print(measured_temp_f);
+  } else {
+    Serial.print(measured_temp);
+  }
+  Serial.print(temp_units_label);
+  Serial.print("; ");
  
   // Get humidity
   measured_humi = bme.readHumidity();
@@ -365,35 +387,53 @@ void measurementEvent() {
   double b = 237.7;
   double tempcalc = (a * measured_temp) / (b + measured_temp) + log(measured_humi*0.01);
   DewpointTemperature = (b * tempcalc) / (a - tempcalc);
+  DewpointTemperatureF = (DewpointTemperature * 1.8) + 32;
   Serial.print("Dewpoint: ");
-  Serial.print(DewpointTemperature);
-  Serial.println("°C; ");
+  if (TEMP_UNITS_F == 1) {
+    Serial.print(DewpointTemperatureF);
+  } else {
+    Serial.print(DewpointTemperature);
+  }
+  Serial.print(temp_units_label);
+  Serial.print("; ");
 
   // Calculate dewpoint spread (difference between actual temp and dewpoint -> the smaller the number: rain or fog
 
   DewPointSpread = measured_temp - DewpointTemperature;
+  DewPointSpreadF = (DewPointSpread * 1.8) + 32;
   Serial.print("Dewpoint Spread: ");
-  Serial.print(DewPointSpread);
-  Serial.println("°C; ");
+  if (TEMP_UNITS_F == 1) {
+    Serial.print(DewPointSpreadF);
+  } else {
+    Serial.print(DewPointSpread);
+  }
+  Serial.print(temp_units_label);
+  Serial.print("; ");
 
   // Calculate HI (heatindex in °C) --> HI starts working above 26,7 °C
   if (measured_temp > 26.7) {
-  double c1 = -8.784, c2 = 1.611, c3 = 2.338, c4 = -0.146, c5= -1.230e-2, c6=-1.642e-2, c7=2.211e-3, c8=7.254e-4, c9=-2.582e-6  ;
-  double T = measured_temp;
-  double R = measured_humi;
-  
-  double A = (( c5 * T) + c2) * T + c1;
-  double B = ((c7 * T) + c4) * T + c3;
-  double C = ((c9 * T) + c8) * T + c6;
-  HeatIndex = (C * R + B) * R + A; 
+    double c1 = -8.784, c2 = 1.611, c3 = 2.338, c4 = -0.146, c5= -1.230e-2, c6=-1.642e-2, c7=2.211e-3, c8=7.254e-4, c9=-2.582e-6  ;
+    double T = measured_temp;
+    double R = measured_humi;
+    
+    double A = (( c5 * T) + c2) * T + c1;
+    double B = ((c7 * T) + c4) * T + c3;
+    double C = ((c9 * T) + c8) * T + c6;
+    HeatIndex = (C * R + B) * R + A; 
+    HeatIndexF = (HeatIndex * 1.8) + 32;
   } 
   else {
     HeatIndex = measured_temp;
     Serial.println("Not warm enough (less than 26.7 °C) for Heatindex");
   }
   Serial.print("HeatIndex: ");
-  Serial.print(HeatIndex);
-  Serial.print("°C; ");
+  if (TEMP_UNITS_F == 1) {
+    Serial.print(HeatIndexF);
+  } else {
+    Serial.print(HeatIndex);
+  }
+  Serial.print(temp_units_label);
+  Serial.print("; ");
   
   //******Battery Voltage Monitoring*********************************************
   

@@ -53,6 +53,10 @@ virtual pin 7 Zambrettis Words
 virtual pin 8 Accuracy in percent (%)
 virtual pin 9 Tend in Words
 virtual pin 10 Dewpoint Spread
+virtual pin 11 Temperature (Fahrenheit)
+virtual pin 12 Dewpoint (Fahrenheit)
+virtual pin 13 HeatIndex (Fahrenheit)
+virtual pin 14 Dewpoint Spread (Fahrenheit)
 
 ThingSpeak:
 
